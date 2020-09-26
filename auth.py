@@ -15,14 +15,13 @@ SUPPORTED_REGIONS = ['eu', 'ru']
 
 
 # reference: https://github.com/seanwlk/warface-crate-manager/blob/424c9ff8ed11ba4ff64931ae5ba428792339f093/gui/crate-manager.py#L540
-def login(session, region='eu'):
-    if region == 'eu':
-        dir_path = os.path.dirname(os.path.realpath(__file__))
-        # TODO: convert credentials as args
-        with open('{}/creds.json'.format(dir_path), 'r') as json_file:
-            credentials_string = json_file.read()
-        credentials = json.loads(credentials_string)
+def login(session, region='eu', cred_name="creds_template.json"):
+    dir_path = os.path.dirname(os.path.realpath(__file__))
+    with open('{dir_path}/{cred_file_name}'.format(dir_path=dir_path, cred_file_name=cred_name), 'r') as json_file:
+        credentials_string = json_file.read()
+    credentials = json.loads(credentials_string)
 
+    if region == 'eu':
         payload = {
             'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3',
             'Accept-Encoding': 'gzip, deflate, br',
@@ -71,12 +70,6 @@ def login(session, region='eu'):
         handle_logs(0, 'eu login successful')
 
     elif region == 'ru':
-        dir_path = os.path.dirname(os.path.realpath(__file__))
-        # TODO: convert credentials as args
-        with open('{}/creds.json'.format(dir_path), 'r') as json_file:
-            credentials_string = json_file.read()
-        credentials = json.loads(credentials_string)
-
         payload = {
             'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3',
             'Accept-Encoding': 'gzip, deflate, br',
@@ -153,18 +146,17 @@ def get_mg_token(session, region='eu'):
         session.cookies['mg_token'] = get_token['data']['token']
 
 
-def main(region='eu'):
+def main(region='eu', cred_name="creds_template.json"):
     if region not in SUPPORTED_REGIONS:
         handle_logs(3, "invalid region {region}".format(region=region))
         exit(1)
 
     dir_path = os.path.dirname(os.path.realpath(__file__))
-    with open('{}/creds.json'.format(dir_path), 'r') as json_file:
+    with open('{dir_path}/{cred_file_name}'.format(dir_path=dir_path, cred_file_name=cred_name), 'r') as json_file:
         credentials_string = json_file.read()
     credentials = json.loads(credentials_string)
 
     # conn = create_connection('./marketplace.db')
-
     conn = create_connection_pg(dbname=credentials['psql_db_name'],
                                 user=credentials['psql_user'],
                                 password=credentials['psql_password'],
@@ -187,7 +179,7 @@ def main(region='eu'):
     sess = requests.Session()
     while True:
         try:
-            login(sess, region=region)
+            login(sess, region=region, cred_name=cred_name)
         except Exception as e:
             err_str = "Error when log in: \n" + str(e)
             handle_logs(3, err_str)
@@ -197,7 +189,6 @@ def main(region='eu'):
     try_count = 0
     total_fail_count = 0
     fail_count = 0
-    # TODO: market url as a part of region
     while True:
         try_count += 1
         # refresh mg_token for every 50 requests
@@ -218,7 +209,7 @@ def main(region='eu'):
         if fail_count > 10:
             handle_logs(1, "Need restart")
             fail_count = 0
-            login(sess, region=region)
+            login(sess, region=region, cred_name=cred_name)
 
         # fetch marketplace data
         try:
@@ -430,11 +421,11 @@ def main(region='eu'):
 
 
 if __name__ == "__main__":
-    if len(sys.argv) != 2:
-        print("option: auth.py [eu|ru]")
+    if len(sys.argv) != 3:
+        print("option: auth.py [eu|ru] creds_template.json")
         exit(1)
     input_region = sys.argv[1]
     if input_region not in SUPPORTED_REGIONS:
-        print("option: auth.py [eu|ru]")
+        print("option: auth.py [eu|ru] creds_template.json")
         exit(1)
-    main(region=input_region)
+    main(region=input_region, cred_name=sys.argv[2])
