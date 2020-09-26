@@ -14,6 +14,7 @@ from psycopg2.extras import execute_batch
 SUPPORTED_REGIONS = ['eu', 'ru']
 
 
+# reference: https://github.com/seanwlk/warface-crate-manager/blob/424c9ff8ed11ba4ff64931ae5ba428792339f093/gui/crate-manager.py#L540
 def login(session, region='eu'):
     if region == 'eu':
         dir_path = os.path.dirname(os.path.realpath(__file__))

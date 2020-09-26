@@ -8,13 +8,12 @@ from functools import singledispatch
 
 
 def handle_logs(WARNING_LEVEL: int, message: str):
-    """ create a database connection to the SQLite database
-        specified by db_file
+    """
+    print out logs to console
     :param message: message you want to log
     :param WARNING_LEVEL: level of warnings.
     :return: None
     """
-
     warning_dict = {0: 'Info',
                     1: 'Warning',
                     2: 'Critical',
@@ -29,11 +28,13 @@ def handle_logs(WARNING_LEVEL: int, message: str):
 # TODO: hey you why not try functools.singledispatch here
 # TODO: dispatch based on which db's connection
 def create_connection(db_file: str):
-    """ create a database connection to the SQLite database
-        specified by db_file
+    """
+    create a database connection to the SQLite database
+    specified by db_file
     :param db_file: database file
     :return: Connection object or None
     """
+
     connection = None
     try:
         connection = sqlite3.connect(db_file)
@@ -45,14 +46,15 @@ def create_connection(db_file: str):
 
 def create_connection_pg(dbname: str, user: str, password: str, host: str, port: str):
     """
-
+    create a db connection to a psql db
     :param dbname: name of the PostgreSQL database
     :param user: db user
     :param password: password of the user
     :param host: the host where the db is hosted
     :param port: port opened by the database
-    :return:
+    :return: a psycopg2 connection, or none if failed
     """
+
     connection = None
     try:
         connection = psycopg2.connect(dbname=dbname,
@@ -66,6 +68,7 @@ def create_connection_pg(dbname: str, user: str, password: str, host: str, port:
 
 
 def create_db(region):
+
     conn = sqlite3.connect('./marketplace.db')
     c = conn.cursor()
     items_table_name = "items"
@@ -89,7 +92,7 @@ def create_db(region):
     conn.close()
 
 
-def create_timeseries_table(connection, new_table_name, main_table_name):
+def create_timeseries_table(connection, new_table_name):
     cur = connection.cursor()
 
     # SQL injection on @new_table_name
@@ -100,10 +103,9 @@ def create_timeseries_table(connection, new_table_name, main_table_name):
     entity_id integer, 
     entity_timestamp integer, 
     min_price integer,
-    entity_count integer,
-    FOREIGN KEY (entity_id) REFERENCES {main_table_name}(entity_id)
+    entity_count integer
     );
-    '''.format(new_table_name=new_table_name, main_table_name=main_table_name)
+    '''.format(new_table_name=new_table_name)
     ex = cur.execute(sql)
     result = ex.fetchone()
     connection.commit()
