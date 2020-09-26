@@ -6,7 +6,6 @@ import requests
 import datetime
 from db_utils import create_connection, insert_item_timestamp_to_table, insert_item_to_table, create_connection_pg, \
     handle_logs
-from db_check_items import check_and_set_changes
 import sqlite3
 import psycopg2
 from psycopg2.extras import execute_batch
