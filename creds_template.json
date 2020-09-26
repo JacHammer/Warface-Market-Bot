@@ -1,0 +1,11 @@
+{
+    "email": "",
+    "password": "",
+    "ru_email": "",
+    "ru_password": "",
+    "psql_db_name": "",
+    "psql_user": "",
+    "psql_password": "",
+    "psql_host": "127.0.0.1",
+    "psql_port": "5432"
+}
