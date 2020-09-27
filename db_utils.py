@@ -97,6 +97,7 @@ def create_timeseries_table(connection, new_table_name):
 
     # SQL injection on @new_table_name
     # TODO: DON'T use format(); SQL Injection
+    # TOO: change id to serial for postgres
     sql = '''
     CREATE TABLE IF NOT EXISTS {new_table_name} (
     id integer PRIMARY KEY AUTOINCREMENT,
@@ -165,3 +166,28 @@ def _(cursor, item, timeseries_table_name):
     cursor.execute(sql, item)
     return cursor.lastrowid
 
+
+def create_market_state_table(connection, region):
+    cursor = connection.cursor()
+    table_name = "market_state_" + region
+    sql = '''
+    CREATE TABLE IF NOT EXISTS {table_name} (
+    id SERIAL PRIMARY KEY,
+    market_timestamp integer, 
+    market_http_code integer,
+    market_error text,
+    market_error_verbose text
+    );
+    '''.format(table_name=table_name)
+
+    cursor.execute(sql)
+    connection.commit()
+
+    # create unique index on timeseries key
+    index_name = table_name + '_id_uindex'
+
+    sql2 = '''create unique index {idx_name} on {table_name} (id);''' \
+        .format(idx_name=index_name, table_name=table_name)
+    cursor.execute(sql2)
+    connection.commit()
+    connection.close()
