@@ -237,6 +237,7 @@ def main(region='eu', cred_name="creds_template.json"):
                 else:
                     market_state = (market_state_timestamp, req.status_code, HTTP_ERR_SHORT["OTHER"], req.text)
                 insert_market_state_to_table(cur, market_state, market_state_table_name)
+                conn.commit()
                 handle_logs(2, status_code_exception_msg)
                 total_fail_count += 1
                 fail_count += 1
@@ -248,6 +249,7 @@ def main(region='eu', cred_name="creds_template.json"):
             fail_count += 1
             market_state = (market_state_timestamp, 0, HTTP_ERR_SHORT["OTHER"], str(conn_err))
             insert_market_state_to_table(cur, market_state, market_state_table_name)
+            conn.commit()
             handle_logs(0, "connection: server just had a hiccup...")
             time.sleep(5)
             handle_logs(0, "resuming task...")
