@@ -5,13 +5,20 @@ import json
 import requests
 import datetime
 from db_utils import create_connection, insert_item_timestamp_to_table, insert_item_to_table, create_connection_pg, \
-    handle_logs
+    handle_logs, insert_market_state_to_table
 import sqlite3
 import psycopg2
 from psycopg2.extras import execute_batch
 
 
 SUPPORTED_REGIONS = ['eu', 'ru']
+HTTP_ERR_SHORT = {400: "UNAUTHORIZED",
+                  404: "NOT_FOUND",
+                  423: "LOCKED",
+                  500: "INTERNAL_SERVER_ERROR",
+                  502: "BAD_GATEWAY",
+                  504: "GATEWAY_TIMEOUT",
+                  "OTHER":  "OTHER"}
 
 
 # reference: https://github.com/seanwlk/warface-crate-manager/blob/424c9ff8ed11ba4ff64931ae5ba428792339f093/gui/crate-manager.py#L540
@@ -166,12 +173,15 @@ def main(region='eu', cred_name="creds_template.json"):
     timeseries_table_name = ""
     market_url = ""
     items_table_name = ""
+    market_state_table_name = ""
     if region == 'eu':
         timeseries_table_name = "timeseries"
+        market_state_table_name = "market_state"
         market_url = "https://pc.warface.com/minigames/marketplace/api/all"
         items_table_name = 'items'
     elif region == 'ru':
         timeseries_table_name = "timeseries_ru"
+        market_state_table_name = "market_state_ru"
         market_url = "https://ru.warface.com/minigames/marketplace/api/all"
         items_table_name = 'items_ru'
 
@@ -212,20 +222,32 @@ def main(region='eu', cred_name="creds_template.json"):
             login(sess, region=region, cred_name=cred_name)
 
         # fetch marketplace data
+        # construct basic stuff for insert marketplace state
+        market_state_timestamp = int(time.time())
+        cur = conn.cursor()
+
         try:
             req = sess.get(market_url)
             # check HTTP code for validation
             if req.status_code != 200:
-                # TODO: record marketplace availability here?
+                # record marketplace availability here w/ HTTP code
                 status_code_exception_msg = "unable to access Marketplace;" + " HTTP Code: {}".format(str(req.status_code))
+                if req.status_code in HTTP_ERR_SHORT.keys():
+                    market_state = (market_state_timestamp, req.status_code, HTTP_ERR_SHORT[req.status_code], req.text)
+                else:
+                    market_state = (market_state_timestamp, req.status_code, HTTP_ERR_SHORT["OTHER"], req.text)
+                insert_market_state_to_table(cur, market_state, market_state_table_name)
                 handle_logs(2, status_code_exception_msg)
                 total_fail_count += 1
                 fail_count += 1
                 time.sleep(5)
                 continue
-        except ConnectionError:
+
+        except ConnectionError as conn_err:
             total_fail_count += 1
             fail_count += 1
+            market_state = (market_state_timestamp, 0, HTTP_ERR_SHORT["OTHER"], str(conn_err))
+            insert_market_state_to_table(cur, market_state, market_state_table_name)
             handle_logs(0, "connection: server just had a hiccup...")
             time.sleep(5)
             handle_logs(0, "resuming task...")
@@ -233,6 +255,9 @@ def main(region='eu', cred_name="creds_template.json"):
         except Exception as e:
             total_fail_count += 1
             fail_count += 1
+            market_state = (market_state_timestamp, 1, HTTP_ERR_SHORT["OTHER"], str(e))
+            insert_market_state_to_table(cur, market_state, market_state_table_name)
+            conn.commit()
             market_url_exception_msg = "get requests: {}".format(str(e))
             handle_logs(2, market_url_exception_msg)
             iter_msg = "loop counter: {} iteration(s) done".format(str(try_count))
@@ -246,21 +271,30 @@ def main(region='eu', cred_name="creds_template.json"):
         except ValueError as value_error:
             total_fail_count += 1
             fail_count += 1
+            market_state = (market_state_timestamp, 2, HTTP_ERR_SHORT["OTHER"], str(value_error))
+            insert_market_state_to_table(cur, market_state, market_state_table_name)
+            conn.commit()
             value_err_msg = "unable to parse json: {}".format(str(value_error))
             handle_logs(2, value_err_msg)
             time.sleep(5)
             continue
 
         # check if marketplace is under maintenance
-        if not main_json:
+        if not main_json or ('data' in main_json and not main_json['data']):
             total_fail_count += 1
             fail_count += 1
+            market_state = (market_state_timestamp, 3, HTTP_ERR_SHORT["OTHER"], "EMPTY_MAIN_JSON")
+            insert_market_state_to_table(cur, market_state, market_state_table_name)
+            conn.commit()
             handle_logs(1, "no items in Marketplace; the user possibly has no access to the marketplace; standby...")
-            time.sleep(30)
+            time.sleep(3)
             continue
         if main_json == "error":
             total_fail_count += 1
             fail_count += 1
+            market_state = (market_state_timestamp, 4, HTTP_ERR_SHORT["OTHER"], str("MAIN_JSON_AS_ERROR"))
+            insert_market_state_to_table(cur, market_state, market_state_table_name)
+            conn.commit()
             handle_logs(2, "marketplace returns an error; standby...")
             time.sleep(30)
             continue
@@ -268,13 +302,16 @@ def main(region='eu', cred_name="creds_template.json"):
             if main_json['state'] == 'Fail':
                 total_fail_count += 1
                 fail_count += 1
+                market_state = (market_state_timestamp, 5, HTTP_ERR_SHORT["OTHER"], str("MAIN_JSON_FAIL_STATE"))
+                insert_market_state_to_table(cur, market_state, market_state_table_name)
+                conn.commit()
                 fail_state_msg = "fail state detected in main_json: {}".format(str(main_json))
                 handle_logs(2, fail_state_msg)
                 continue
+        conn.commit()
         sys.stdout.flush()
 
-        current_timestamp = time.time()
-        entity_time_stamp = int(current_timestamp)
+        entity_time_stamp = int(time.time())
         cur = conn.cursor()
 
         start_time = time.time()

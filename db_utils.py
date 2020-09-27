@@ -95,12 +95,10 @@ def create_db(region):
 def create_timeseries_table(connection, new_table_name):
     cur = connection.cursor()
 
-    # SQL injection on @new_table_name
-    # TODO: DON'T use format(); SQL Injection
     # TOO: change id to serial for postgres
     sql = '''
     CREATE TABLE IF NOT EXISTS {new_table_name} (
-    id integer PRIMARY KEY AUTOINCREMENT,
+    id integer SERIAL PRIMARY KEY ,
     entity_id integer, 
     entity_timestamp integer, 
     min_price integer,
@@ -149,7 +147,6 @@ def insert_item_timestamp_to_table(cursor, item, timeseries_table_name):
 
 @insert_item_timestamp_to_table.register(psycopg2.extensions.cursor)
 def _(cursor, item, timeseries_table_name):
-    # TODO: DON'T use format(); SQL Injection
     sql = '''INSERT INTO {timeseries_table_name} (entity_id, entity_timestamp, min_price, entity_count)
              VALUES(%s, %s, %s, %s)
     '''.format(timeseries_table_name=timeseries_table_name)
@@ -159,7 +156,6 @@ def _(cursor, item, timeseries_table_name):
 
 @insert_item_timestamp_to_table.register(sqlite3.Cursor)
 def _(cursor, item, timeseries_table_name):
-    # TODO: DON'T use format(); SQL Injection
     sql = '''INSERT INTO {timeseries_table_name} (entity_id, entity_timestamp, min_price, entity_count)
              VALUES(?, ?, ?, ?)
     '''.format(timeseries_table_name=timeseries_table_name)
@@ -191,3 +187,40 @@ def create_market_state_table(connection, region):
     cursor.execute(sql2)
     connection.commit()
     connection.close()
+
+
+@singledispatch
+def insert_market_state_to_table(cursor, state, state_table_name):
+    raise NotImplementedError("{} is not a valid database cursor".format(type(cursor)))
+
+
+@insert_market_state_to_table.register(psycopg2.extensions.cursor)
+def _(cursor, state, state_table_name):
+    sql = '''
+    INSERT INTO {state_table_name} 
+    (
+    market_timestamp, 
+    market_http_code,
+    market_error,
+    market_error_verbose
+    )
+    VALUES 
+    (%s, %s, %s, %s)
+    '''.format(state_table_name=state_table_name)
+    cursor.execute(sql, state)
+    return cursor.lastrowid
+
+
+@insert_market_state_to_table.register(sqlite3.Cursor)
+def _(cursor, state, state_table_name):
+    sql = '''INSERT INTO {state_table_name}     
+    (
+    market_timestamp, 
+    market_http_code,
+    market_error,
+    market_error_verbose
+    )
+     VALUES(?, ?, ?, ?)
+    '''.format(state_table_name=state_table_name)
+    cursor.execute(sql, state)
+    return cursor.lastrowid
