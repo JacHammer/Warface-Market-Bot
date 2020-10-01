@@ -12,7 +12,8 @@ from psycopg2.extras import execute_batch
 
 
 SUPPORTED_REGIONS = ['eu', 'ru']
-HTTP_ERR_SHORT = {400: "UNAUTHORIZED",
+HTTP_ERR_SHORT = {400: "BAD_REQUEST",
+                  401: "UNAUTHORIZED",
                   404: "NOT_FOUND",
                   423: "LOCKED",
                   500: "INTERNAL_SERVER_ERROR",
